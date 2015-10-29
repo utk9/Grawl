@@ -34,11 +34,7 @@ extern int ychOledMax; // defined in OrbitOled.c
 /* ------------------------------------------------------------ */
 char	chSwtCur;
 char	chSwtPrev;
-bool	fClearOled;
-
-
-
-char restartStr[38] = "Flip the switch off then on to begin.";  
+bool	fClearOled;  
 
 /* ------------------------------------------------------------ */
 /*				Forward Declarations							*/
@@ -50,25 +46,39 @@ void OrbitSetOled();
 char I2CGenTransmit(char * pbData, int cSize, bool fRW, char bAddr);
 bool I2CGenIsNotIdle();
 
-int platformHeight = 32;
-int platformWidth = 8;
+/* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- */
+/*                      Falldown Declarations                  */
+/* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- */
 
-int ballWidth = 4;
+int randY(){
+  return (int)(random(0, 25));
+}
+
+/* -------------- Bitmap and Bitmap Size Declarations -------- */
+int platformWidth = 2;
+int platformHeight = 32;
+
+int holeWidth = 2;
+int holeHeight = 8;
+
+int ballWidth = 2;
 int ballHeight = 8;
 
 char rgBMPPlatform[] = {
-  0x03, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0xc0, 0xc0, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-  0xff, 0xff, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+  0xff, 0xff,
+  0xff, 0xff,
+  0xff, 0xff,
+  0xff, 0xff
+};
+
+//serpate definition for the hole in the platform so it can simply be shifted
+char rgBMPHole[] = {
+  0xc1, 0xc1
 };
 
 char rgBMPBall[] = {
-  0x3c, 0x3c, 0x3c, 0x3c
+  0x03, 0x03
 };
-
-int xcoBall = 64;
-int ycoBall = 12;
 
 void setup()
 {
@@ -77,13 +87,17 @@ void setup()
 
 void loop()
 { 
+  int y = randY();
   for(int i = 128; i >= 0; i--){
     delay(20);
     OrbitOledClear();
     OrbitOledMoveTo(i, 0);
     OrbitOledPutBmp(platformWidth, platformHeight, rgBMPPlatform);
     
-    OrbitOledMoveTo(i < 68 ? i-4 : 64, 12);
+    OrbitOledMoveTo(i, y);
+    OrbitOledPutBmp(holeWidth, holeHeight, rgBMPHole);
+    
+    OrbitOledMoveTo(i < 66 ? i-2 : 64, 12);
     OrbitOledPutBmp(ballWidth, ballHeight, rgBMPBall);
     OrbitOledUpdate();
   }
