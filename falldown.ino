@@ -50,21 +50,30 @@ bool I2CGenIsNotIdle();
 /*                      Falldown Declarations                  */
 /* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- */
 
+typedef struct{
+  int x;
+  int y;
+} ballStruct;
+
+typedef struct{
+  int x;
+  int hole;
+} platformStruct;
 
 /* ---------------------- Game Variables --------------------- */
 
-//Holds x values for platforms
-int platform[4];
-//holds y values for holes
-int hole[4];
 
-int ball[2];
+platformStruct platform[4];
+ballStruct ball;
+
+long count = 0;
+int y;
 
 //Velocities based on +x -> down, +y -> left
 
-int vBallX = 1;
-int vBallY = 0;
-int vPlatform = -1;
+float vBallX = 1.0;
+float vBallY = 0.0;
+float vPlatform = -1.0;
 
 /* -------------- Bitmap and Bitmap Size Declarations -------- */
 int platformWidth = 2;
@@ -84,12 +93,25 @@ char rgBMPPlatform[] = {
 };
 
 //serpate definition for the hole in the platform so it can simply be shifted
+//actual opening is 5px wide drawn 11000001
 char rgBMPHole[] = {
   0xc1, 0xc1
 };
 
 char rgBMPBall[] = {
   0x03, 0x03
+};
+
+//used to erase BMPs
+char rgBMPErasePlatform[] = {
+  0x00, 0x00,
+  0x00, 0x00,
+  0x00, 0x00,
+  0x00, 0x00
+};
+
+char rgBMPEraseBall[] = {
+  0x00, 0x00
 };
 
 void setup()
@@ -103,41 +125,43 @@ void loop()
 }
 
 void demo(){
-  gameInit();
-  int y = randY();
-  for(int i = 0; i < 4; i++){
-    delay(20);
-    //OrbitOledClear();
-    OrbitOledMoveTo(platform[i], 0);
-    OrbitOledPutBmp(platformWidth, platformHeight, rgBMPPlatform);
-    
-    OrbitOledMoveTo(platform[i], hole[i]);
-    OrbitOledPutBmp(holeWidth, holeHeight, rgBMPHole);
-    // Checks shit
-    OrbitOledGetPixel();
-    
-    OrbitOledMoveTo(30, 12);
-    OrbitOledPutBmp(ballWidth, ballHeight, rgBMPBall);
-    OrbitOledUpdate();
+  if(count%50 == 0){
+    gameInit();
+    OrbitOledClear();
   }
+  count++;
+  delay(20);
+  updateBall();
+  updatePlatforms();
+  updateScreen();
 }
 
 void gameInit(){
   for(int i = 0; i < 4; i++){
-    platform[i] = i*32+32;
-    hole[i] = randY();
+    platform[i].x = i*32+32;
+    platform[i].hole = randY();
   }
+  
+  //temporary for demo purposes
+  platform[0].hole = 13;
+  
+  ball.x = 0;
+  ball.y = 15;
+  
+  vBallX = 1;
+  vBallY = 0;
+  vPlatform = -1;
 }
 
 /* ------- Check Functions ------- */
 void checkPlatforms(){
-  if(platform[0] <= 0){
+  if(platform[0].x <= 0){
     for(int i = 0; i < 3; i++){
-      platform[i] = platform[i+1];
-      hole[i] = hole[i+1];
+      platform[i].x = platform[i+1].x;
+      platform[i].hole = platform[i+1].hole;
     }
-    platform[3] = platform[2]+32;
-    hole[3] = randY();
+    platform[3].x = platform[2].x+32;
+    platform[3].hole = randY();
   }
 }
 
@@ -150,12 +174,60 @@ int checkPixel(int x, int y){
 void updatePlatforms(){
   checkPlatforms();
   for(int i = 0; i < 4; i++){
-    platform[i] += vPlatform;
+    platform[i].x += vPlatform;
   }
 }
 
 void updateBall(){
-  //if()
+  /* get vBallY from accelorometer
+  vBallY = 
+  */
+  if(ball.x + vBallX >= 125){
+    ball.x = platform[3].x + vPlatform < 125 ? platform[3].x + vPlatform - 2 : 125;
+  }else{
+    for(int i = 0; i < 4; i++){
+      //if ball is set to pass a platform after this update
+      if(ball.x + vBallX <= platform[i].x - 3 && ball.x + vBallX >= platform[i].x + vPlatform - 3){
+        //if the ball is not above the hole
+        if(!(ball.y > platform[i].hole && ball.y < platform[i].hole + 4)){
+          ball.x = platform[i].x - 3;
+          vBallX = vPlatform;
+          break;
+        }
+      }
+    }
+    ball.x += vBallX;
+  }
+  ball.y = ball.y+vBallY >= 29 ? 29 : ball.y+vBallY <= 0 ? 0 : ball.y+vBallY;
+  
+}
+
+void updateScreen(){
+  for(int i = 0; i < 4; i++){
+    //erase platform
+    OrbitOledMoveTo(platform[i].x-vPlatform, 0);
+    OrbitOledPutBmp(platformWidth, platformHeight, rgBMPErasePlatform);
+    
+    //draw new platform
+    OrbitOledMoveTo(platform[i].x, 0);
+    OrbitOledPutBmp(platformWidth, platformHeight, rgBMPPlatform);
+      
+    OrbitOledMoveTo(platform[i].x, platform[i].hole);
+    OrbitOledPutBmp(holeWidth, holeHeight, rgBMPHole);
+  }
+  
+  OrbitOledMoveTo(0, 0);
+  OrbitOledPutBmp(platformWidth, platformHeight, rgBMPErasePlatform);
+  
+  //erase ball 
+  OrbitOledMoveTo(ball.x-vBallX, ball.y-vBallY);
+  OrbitOledPutBmp(ballWidth, ballHeight, rgBMPEraseBall); //fix: clipping platform when it passes one
+  
+  //draw new ball
+  OrbitOledMoveTo(ball.x, ball.y);
+  OrbitOledPutBmp(ballWidth, ballHeight, rgBMPBall);
+  
+  OrbitOledUpdate();
 }
 
 int randY(){
