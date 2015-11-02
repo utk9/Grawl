@@ -50,9 +50,21 @@ bool I2CGenIsNotIdle();
 /*                      Falldown Declarations                  */
 /* -=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=- */
 
-int randY(){
-  return (int)(random(0, 25));
-}
+
+/* ---------------------- Game Variables --------------------- */
+
+//Holds x values for platforms
+int platform[4];
+//holds y values for holes
+int hole[4];
+
+int ball[2];
+
+//Velocities based on +x -> down, +y -> left
+
+int vBallX = 1;
+int vBallY = 0;
+int vPlatform = -1;
 
 /* -------------- Bitmap and Bitmap Size Declarations -------- */
 int platformWidth = 2;
@@ -87,21 +99,70 @@ void setup()
 
 void loop()
 { 
+  demo();
+}
+
+void demo(){
+  gameInit();
   int y = randY();
-  for(int i = 128; i >= 0; i--){
+  for(int i = 0; i < 4; i++){
     delay(20);
-    OrbitOledClear();
-    OrbitOledMoveTo(i, 0);
+    //OrbitOledClear();
+    OrbitOledMoveTo(platform[i], 0);
     OrbitOledPutBmp(platformWidth, platformHeight, rgBMPPlatform);
     
-    OrbitOledMoveTo(i, y);
+    OrbitOledMoveTo(platform[i], hole[i]);
     OrbitOledPutBmp(holeWidth, holeHeight, rgBMPHole);
+    // Checks shit
+    OrbitOledGetPixel();
     
-    OrbitOledMoveTo(i < 66 ? i-2 : 64, 12);
+    OrbitOledMoveTo(30, 12);
     OrbitOledPutBmp(ballWidth, ballHeight, rgBMPBall);
     OrbitOledUpdate();
   }
 }
+
+void gameInit(){
+  for(int i = 0; i < 4; i++){
+    platform[i] = i*32+32;
+    hole[i] = randY();
+  }
+}
+
+/* ------- Check Functions ------- */
+void checkPlatforms(){
+  if(platform[0] <= 0){
+    for(int i = 0; i < 3; i++){
+      platform[i] = platform[i+1];
+      hole[i] = hole[i+1];
+    }
+    platform[3] = platform[2]+32;
+    hole[3] = randY();
+  }
+}
+
+int checkPixel(int x, int y){
+  OrbitOledMoveTo(x, y);
+  return OrbitOledGetPixel();
+}
+
+/* ----- Update Functions ------ */
+void updatePlatforms(){
+  checkPlatforms();
+  for(int i = 0; i < 4; i++){
+    platform[i] += vPlatform;
+  }
+}
+
+void updateBall(){
+  //if()
+}
+
+int randY(){
+  return (int)(random(0, 25));
+}
+
+/* ~~~~~~~~~~~ BoosterPack Init and Other Stuff ~~~~~~~~~~~~~~ */
 
 /* ------------------------------------------------------------ */
 /***	DeviceInit
@@ -408,16 +469,6 @@ bool I2CGenIsNotIdle() {
 
 }
 
-/*===============================================================*/
-/*===============================================================*/
-/*======================|| Falldown Code ||======================*/
-/*========================V=V=V=V=V=V=V=V========================*/
-/*========================V=V=V=V=V=V=V=V========================*/
-
-void falldown(){
-  
-  
-}
 
 
 
