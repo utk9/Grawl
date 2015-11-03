@@ -67,13 +67,12 @@ platformStruct platform[4];
 ballStruct ball;
 
 long count = 0;
-int y;
 
 //Velocities based on +x -> down, +y -> left
 
-float vBallX = 1.0;
-float vBallY = 0.0;
-float vPlatform = -1.0;
+float vBallX;
+float vBallY;
+float vPlatform;
 
 /* -------------- Bitmap and Bitmap Size Declarations -------- */
 int platformWidth = 2;
@@ -83,7 +82,7 @@ int holeWidth = 2;
 int holeHeight = 8;
 
 int ballWidth = 2;
-int ballHeight = 8;
+int ballHeight = 2;
 
 char rgBMPPlatform[] = {
   0xff, 0xff,
@@ -95,7 +94,7 @@ char rgBMPPlatform[] = {
 //serpate definition for the hole in the platform so it can simply be shifted
 //actual opening is 5px wide drawn 11000001
 char rgBMPHole[] = {
-  0xc1, 0xc1
+  0x00, 0x00
 };
 
 char rgBMPBall[] = {
@@ -117,6 +116,8 @@ char rgBMPEraseBall[] = {
 void setup()
 {
   DeviceInit();
+  gameInit();
+  OrbitOledClear();
 }
 
 void loop()
@@ -125,32 +126,82 @@ void loop()
 }
 
 void demo(){
-  if(count%50 == 0){
-    gameInit();
-    OrbitOledClear();
-  }
+  delay(50 - count/1000 >= 5 ? 50 - count/10000 : 5);
   count++;
-  delay(20);
   updateBall();
   updatePlatforms();
   updateScreen();
 }
 
 void gameInit(){
+  accelInit();
   for(int i = 0; i < 4; i++){
     platform[i].x = i*32+32;
     platform[i].hole = randY();
-  }
-  
+  } 
   //temporary for demo purposes
   platform[0].hole = 13;
   
-  ball.x = 0;
+  ball.x = 10;
   ball.y = 15;
   
   vBallX = 1;
   vBallY = 0;
   vPlatform = -1;
+}
+
+void accelInit(){
+  char 	chPwrCtlReg = 0x2D;
+  char  chY0Addr = 0x34;
+  char 	rgchWriteAccl[] = {
+    0, 0            };
+  
+  /*
+     * Enable I2C Peripheral
+     */
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_I2C0);
+    SysCtlPeripheralReset(SYSCTL_PERIPH_I2C0);
+
+    /*
+     * Set I2C GPIO pins
+     */
+    GPIOPinTypeI2C(I2CSDAPort, I2CSDA_PIN);
+    GPIOPinTypeI2CSCL(I2CSCLPort, I2CSCL_PIN);
+    GPIOPinConfigure(I2CSCL);
+    GPIOPinConfigure(I2CSDA);
+
+    /*
+     * Setup I2C
+     */
+    I2CMasterInitExpClk(I2C0_BASE, SysCtlClockGet(), false);
+
+    /* Initialize the Accelerometer
+     *
+     */
+    GPIOPinTypeGPIOInput(ACCL_INT2Port, ACCL_INT2);
+
+    rgchWriteAccl[0] = chPwrCtlReg;
+    rgchWriteAccl[1] = 1 << 3;		// sets Accl in measurement mode
+    I2CGenTransmit(rgchWriteAccl, 1, WRITE, ACCLADDR);
+}
+
+int accelRead(){
+  short dataY;
+  
+  char  chY0Addr = 0x34;
+    
+  char rgchReadAccl2[] = {
+    0, 0, 0            };
+  
+  /*
+     * Read the X data register
+     */
+    rgchReadAccl2[0] = chY0Addr;
+    I2CGenTransmit(rgchReadAccl2, 2, READ, ACCLADDR);
+    
+    dataY = (rgchReadAccl2[2] << 8) | rgchReadAccl2[1];
+    
+    return (int)dataY;
 }
 
 /* ------- Check Functions ------- */
@@ -179,17 +230,26 @@ void updatePlatforms(){
 }
 
 void updateBall(){
-  /* get vBallY from accelorometer
-  vBallY = 
-  */
+  int aY = accelRead();
+  vBallY = (aY < 50 && aY > -50) ? 0 : aY > 50 ? 2 : -2; 
+  vBallX = 1;
   if(ball.x + vBallX >= 125){
-    ball.x = platform[3].x + vPlatform < 125 ? platform[3].x + vPlatform - 2 : 125;
+    if(ball.x <= platform[3].x - 2 && ball.x + vBallX >= platform[3].x + vPlatform - 2){
+      if(!(ball.y >= platform[3].hole && ball.y < platform[3].hole + 6)){
+        ball.x = platform[3].x - 3;
+        vBallX = vPlatform;
+      }
+    }else{
+      ball.x = 125;
+      vBallX = 0;
+    }
+    ball.x += vBallX;
   }else{
     for(int i = 0; i < 4; i++){
       //if ball is set to pass a platform after this update
-      if(ball.x + vBallX <= platform[i].x - 3 && ball.x + vBallX >= platform[i].x + vPlatform - 3){
+      if(ball.x <= platform[i].x - 3 && ball.x + vBallX >= platform[i].x + vPlatform - 3){
         //if the ball is not above the hole
-        if(!(ball.y > platform[i].hole && ball.y < platform[i].hole + 4)){
+        if(!(ball.y >= platform[i].hole && ball.y < platform[i].hole + 7)){
           ball.x = platform[i].x - 3;
           vBallX = vPlatform;
           break;
@@ -198,7 +258,15 @@ void updateBall(){
     }
     ball.x += vBallX;
   }
-  ball.y = ball.y+vBallY >= 29 ? 29 : ball.y+vBallY <= 0 ? 0 : ball.y+vBallY;
+  if(ball.y+vBallY >= 29){
+    ball.y = 29;
+    vBallY = 0;
+  }else if(ball.y+vBallY <= 0){
+    ball.y = 0;
+    vBallY = 0;
+  }else{
+    ball.y += vBallY;
+  }
   
 }
 
@@ -216,16 +284,21 @@ void updateScreen(){
     OrbitOledPutBmp(holeWidth, holeHeight, rgBMPHole);
   }
   
-  OrbitOledMoveTo(0, 0);
-  OrbitOledPutBmp(platformWidth, platformHeight, rgBMPErasePlatform);
-  
-  //erase ball 
-  OrbitOledMoveTo(ball.x-vBallX, ball.y-vBallY);
-  OrbitOledPutBmp(ballWidth, ballHeight, rgBMPEraseBall); //fix: clipping platform when it passes one
+  //erase ball
+  if(ball.y == 0 || ball.y == 29){ //fixes glitch when ball was hitting walls
+    OrbitOledMoveTo(ball.x - vBallX, 0);
+    OrbitOledPutBmp(platformWidth, platformHeight, rgBMPErasePlatform);
+  }else{
+    OrbitOledMoveTo(ball.x - vBallX, ball.y - vBallY);
+    OrbitOledPutBmp(ballWidth, ballHeight, rgBMPEraseBall);
+  }
   
   //draw new ball
   OrbitOledMoveTo(ball.x, ball.y);
   OrbitOledPutBmp(ballWidth, ballHeight, rgBMPBall);
+  
+  OrbitOledMoveTo(0, 0);
+  OrbitOledPutBmp(platformWidth, platformHeight, rgBMPErasePlatform);
   
   OrbitOledUpdate();
 }
