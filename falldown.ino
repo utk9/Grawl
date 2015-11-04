@@ -13,10 +13,6 @@ extern "C" {
 /* ------------------------------------------------------------ */
 /*				Local Type Definitions		*/
 /* ------------------------------------------------------------ */
-#define DEMO_0		0
-#define DEMO_1		2
-#define DEMO_2		1
-#define DEMO_3		3
 #define RED_LED   GPIO_PIN_1
 #define BLUE_LED  GPIO_PIN_2
 #define GREEN_LED GPIO_PIN_3
@@ -66,7 +62,8 @@ typedef struct{
 platformStruct platform[4];
 ballStruct ball;
 
-long count = 0;
+//In game time
+long gameTime = 0;
 
 //Velocities based on +x -> down, +y -> left
 
@@ -75,6 +72,9 @@ float vBallY;
 float vPlatform;
 
 /* -------------- Bitmap and Bitmap Size Declarations -------- */
+/* When holding device vertical, width represents how tall it is,
+   height represents how wide it is */
+   
 int platformWidth = 2;
 int platformHeight = 32;
 
@@ -84,6 +84,7 @@ int holeHeight = 8;
 int ballWidth = 2;
 int ballHeight = 2;
 
+//fills in 8 by 8 grid, tries to fill in width first, and then height
 char rgBMPPlatform[] = {
   0xff, 0xff,
   0xff, 0xff,
@@ -91,8 +92,7 @@ char rgBMPPlatform[] = {
   0xff, 0xff
 };
 
-//serpate definition for the hole in the platform so it can simply be shifted
-//actual opening is 5px wide drawn 11000001
+//seperate definition for the hole in the platform so it can simply be shifted
 char rgBMPHole[] = {
   0x00, 0x00
 };
@@ -126,7 +126,7 @@ void loop()
 }
 
 void demo(){
-  delay(50 - count/1000 >= 5 ? 50 - count/10000 : 5);
+  delay(50 - gameTime/1000 >= 5 ? 50 - gameTime/10000 : 5);
   count++;
   updateBall();
   updatePlatforms();
@@ -135,6 +135,8 @@ void demo(){
 
 void gameInit(){
   accelInit();
+  
+  //sets up the platform[4] array
   for(int i = 0; i < 4; i++){
     platform[i].x = i*32+32;
     platform[i].hole = randY();
@@ -142,6 +144,13 @@ void gameInit(){
   //temporary for demo purposes
   platform[0].hole = 13;
   
+  /** Vertically, this is what x and y is
+     +y <-------|
+                |
+                |
+                |
+                v
+                x                        **/
   ball.x = 10;
   ball.y = 15;
   
@@ -206,6 +215,10 @@ int accelRead(){
 
 /* ------- Check Functions ------- */
 void checkPlatforms(){
+  
+//if platform scrolls past top of screen, relabel the platform array,
+//and add a new platform at the bottom of the screen
+
   if(platform[0].x <= 0){
     for(int i = 0; i < 3; i++){
       platform[i].x = platform[i+1].x;
