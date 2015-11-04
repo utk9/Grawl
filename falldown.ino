@@ -127,7 +127,7 @@ void loop()
 
 void demo(){
   delay(50 - gameTime/1000 >= 5 ? 50 - gameTime/10000 : 5);
-  count++;
+  gameTime++;
   updateBall();
   updatePlatforms();
   updateScreen();
